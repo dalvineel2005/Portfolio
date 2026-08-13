@@ -87,6 +87,16 @@
     padding: 72px 0 40px;
     position: relative;
   }
+  #candleCanvas{
+    position:absolute;
+    top: -40px; right: -40px;
+    width: 480px; height: 480px;
+    pointer-events:none;
+    opacity: 0.9;
+    z-index: 0;
+  }
+  @media (max-width: 780px){ #candleCanvas{ display:none; } }
+  .hero-grid, .hero-eyebrow{ position:relative; z-index:1; }
   .hero-eyebrow{
     font-family:'IBM Plex Mono', monospace;
     font-size: 0.8rem;
@@ -126,6 +136,12 @@
     border-radius: var(--radius);
     padding: 20px 22px;
     animation: rise 0.7s ease both 0.16s;
+    transform-style: preserve-3d;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    will-change: transform;
+  }
+  .quote-card:hover{
+    box-shadow: 0 20px 40px rgba(16,21,31,0.15);
   }
   .quote-card .sym{
     display:flex; align-items:baseline; justify-content:space-between;
@@ -459,6 +475,7 @@
   </div>
 
   <header class="hero wrap">
+    <canvas id="candleCanvas"></canvas>
     <p class="hero-eyebrow">Ticker · NGD &nbsp;|&nbsp; Mira Road, Thane, India</p>
     <div class="hero-grid">
       <div>
@@ -661,6 +678,91 @@
     track.innerHTML = html + html; // duplicate for seamless marquee
   }
   renderTape();
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  // ---------- Signature 3D element: a slowly-rotating cluster of candlesticks ----------
+  (function(){
+    const canvas = document.getElementById('candleCanvas');
+    if(!canvas || typeof THREE === 'undefined') return;
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const w = 480, h = 480;
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    camera.position.set(3.4, 2.2, 5.2);
+    camera.lookAt(0, 0.4, 0);
+
+    const group = new THREE.Group();
+    scene.add(group);
+
+    // candle data: [x position, body height, up/down, wick extra]
+    const candles = [
+      [-3, 1.6, true, 0.5], [-2, 2.4, true, 0.7], [-1, 1.1, false, 0.4],
+      [0, 2.9, true, 0.9],  [1, 1.8, false, 0.5], [2, 2.2, true, 0.6],
+      [3, 1.3, false, 0.4]
+    ];
+
+    const amber = 0xB5822A, teal = 0x1F6F63, ink = 0x10151F;
+
+    candles.forEach(([x, hgt, up, wick]) => {
+      const color = up ? amber : teal;
+      const bodyGeo = new THREE.BoxGeometry(0.42, hgt, 0.42);
+      const bodyMat = new THREE.MeshBasicMaterial({ color });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.position.set(x * 0.62, hgt / 2, 0);
+      group.add(body);
+
+      const wickGeo = new THREE.BoxGeometry(0.06, hgt + wick, 0.06);
+      const wickMat = new THREE.MeshBasicMaterial({ color: ink, transparent: true, opacity: 0.35 });
+      const wickMesh = new THREE.Mesh(wickGeo, wickMat);
+      wickMesh.position.set(x * 0.62, hgt / 2, 0);
+      group.add(wickMesh);
+
+      const edges = new THREE.EdgesGeometry(bodyGeo);
+      const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x10151F, transparent:true, opacity:0.25 }));
+      line.position.copy(body.position);
+      group.add(line);
+    });
+
+    group.position.x = -1.1;
+    group.rotation.y = -0.4;
+
+    let t = 0;
+    function animate(){
+      t += 0.004;
+      group.rotation.y = -0.5 + Math.sin(t) * 0.35;
+      group.position.y = Math.sin(t * 1.3) * 0.08;
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      // fixed-size decorative canvas, no resize needed for this layout
+    });
+  })();
+
+  // ---------- 3D tilt interaction on the quote card ----------
+  (function(){
+    const card = document.querySelector('.quote-card');
+    if(!card || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width - 0.5;
+      const py = (e.clientY - rect.top) / rect.height - 0.5;
+      card.style.transform = `perspective(600px) rotateX(${py * -8}deg) rotateY(${px * 10}deg) translateZ(6px)`;
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = 'perspective(600px) rotateX(0) rotateY(0) translateZ(0)';
+    });
+  })();
 </script>
 
 </body>
